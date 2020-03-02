@@ -5,7 +5,7 @@ clearvars
 
 bfr = BioformatsImage('D:\Projects\2020Feb Leinwand Mitochondria\data\RQPeri_2spf_1.nd2');
 Linker = LAPLinker;
-Linker.LinkScoreRange = [0, 15];
+Linker.LinkScoreRange = [0, 30];
 
 vid = VideoWriter('test.avi');
 open(vid)
@@ -30,10 +30,19 @@ for iT = 1:bfr.sizeT
     fiberMask = bwareaopen(fiberMask, 7);
     fiberMask = imdilate(fiberMask, 1);
     
-%     fiberMask = bwskel(fiberMask);
-%     showoverlay(Isub, bwperim(fiberMask), 'Opacity', 30);
+%     fiberMask = bwmorph(fiberMask, 'skel', Inf);
+%     fiberMask_ep = bwmorph(fiberMask, 'endpoints');
+%     fiberMask_bp = bwmorph(fiberMask, 'branchpoints');
+%     
+%     fiberMask = fiberMask - fiberMask_bp - fiberMask_ep;
+%     fiberMask = fiberMask > 0.5;
+%     
+%     fiberMask = bwareaopen(fiberMask, 3);
     
-    data = regionprops(fiberMask, 'Centroid', 'PixelIdxList');
+    %showoverlay(Isub, bwperim(fiberMask > 0.5), 'Opacity', 30);
+    
+        
+    data = regionprops(fiberMask, 'Centroid', 'PixelIdxList', 'MajorAxisLength');
     
 %     showoverlay(Isub, bwperim(fiberMask));
 %     centroid = cat(1, data.Centroid);
@@ -62,9 +71,11 @@ for iT = 1:bfr.sizeT
 end
 
 close(vid)
-%%
 
+fnOut = fileparts(bfr.filename);
+save([fnOut, '.mat'], 'Linker')
 
+fh = figure;
 Iout = getPlane(bfr, 1, 1, iT);
 imshow(Iout)
 hold on
@@ -76,3 +87,4 @@ for ii = 1:Linker.NumTracks
 end
 hold off
 
+saveas(fh, [fnOut, '.png']);
