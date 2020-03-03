@@ -1,13 +1,12 @@
-%Instatnenous speed
-%Length
-%pos from leading edge
 clearvars
 
 bfr = BioformatsImage('D:\Projects\2020Feb Leinwand Mitochondria\data\RQPeri_2spf_1.nd2');
 Linker = LAPLinker;
 Linker.LinkScoreRange = [0, 30];
 
-vid = VideoWriter('test.avi');
+[~, fnOut] = fileparts(bfr.filename);
+
+vid = VideoWriter([fnOut, '.avi']);
 open(vid)
 
 for iT = 1:bfr.sizeT
@@ -72,8 +71,7 @@ end
 
 close(vid)
 
-fnOut = fileparts(bfr.filename);
-save([fnOut, '.mat'], 'Linker')
+savestruct(Linker.tracks, [fnOut, '.mat'])  %Export tracks as struct
 
 fh = figure;
 Iout = getPlane(bfr, 1, 1, iT);
