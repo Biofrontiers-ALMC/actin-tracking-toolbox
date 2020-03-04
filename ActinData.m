@@ -82,4 +82,92 @@ classdef ActinData < TrackArray
         end
         
     end
+    
+    methods (Access = protected)
+       
+        function exportToCSV(obj, fn)
+            %EXPORTTOCSV  Export track and filemetadata as CSV files
+            %
+            %  EXPORTTOCSV(OBJ, FN) exports the data as a CSV file.
+            
+            fid = fopen(fn, 'w');
+            
+            if fid < 0
+                error('Error opening file %s for writing.', fn);                
+            end
+            
+            %Print filemetadata if not empty
+            if ~isempty(obj.FileMetadata)
+                metadataFields = fieldnames(obj.FileMetadata);
+                
+                for iMD = 1:numel(metadataFields)
+                    
+                    switch class(obj.FileMetadata.(metadataFields{iMD}))
+                        
+                        case 'char'
+                            fprintf(fid, '%s, %s\n', metadataFields{iMD}, obj.FileMetadata.(metadataFields{iMD}));
+                            
+                        case 'double'
+                            fprintf(fid, '%s, %s\n', metadataFields{iMD}, mat2str(obj.FileMetadata.(metadataFields{iMD})));
+                            
+                    end
+                end
+                fprintf(fid, '\n');
+            end
+            
+            %Print column headers
+            datafields = fieldnames(obj.Tracks(1).Data);
+            
+            fprintf(fid, 'Track ID, Num Frames, Mean Instantaneous Speed, Mean Filament Length, Frame');
+            
+            fprintf(fid, ', %s', datafields{:});
+            fprintf(fid, '\n');
+            
+            for iTrack = 1:numel(obj.Tracks)
+                
+                %Print track metadata
+                fprintf(fid, '%.0f, %.0f, %.3f, %.3f', ...
+                    obj.Tracks(iTrack).ID, ...
+                    obj.Tracks(iTrack).NumFrames, ...
+                    obj.Tracks(iTrack).MeanInstantSpeed, ...
+                    obj.Tracks(iTrack).MeanFilamentLength);
+                    
+                %Print track data
+                for iF = 1:numel(obj.Tracks(iTrack).Frames)
+                    
+                    if iF > 1
+                        fprintf(fid, ', , ,');
+                    end
+                    
+                    %Print frame index
+                    fprintf(fid, ', %.0f', obj.Tracks(iTrack).Frames(iF));
+                    
+                    %Print data fields
+                    for iP = 1:numel(datafields)
+                        
+                        switch class(obj.Tracks(iTrack).Data.(datafields{iP}){iF})
+                            
+                            case 'char'
+                                fprintf(fid, ', %s', obj.Tracks(iTrack).Data.(datafields{iP}){iF});
+                                
+                            case 'double'
+                                fprintf(fid, ', %s', mat2str(obj.Tracks(iTrack).Data.(datafields{iP}){iF}));
+                        
+                        end
+                        
+                    end
+                    fprintf(fid, '\n');
+                end
+                fprintf(fid, '\n');
+                
+            end
+            
+            fclose(fid);
+                        
+        end
+        
+        
+    end
+    
+    
 end

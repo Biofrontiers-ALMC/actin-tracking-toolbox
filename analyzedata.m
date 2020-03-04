@@ -2,7 +2,7 @@ clearvars
 
 %Example of importing the data to the analyzer object
 AD = ActinData;
-AD = importdata(AD, 'D:\Projects\2020Feb Leinwand Mitochondria\data\trackdata_20200302.mat');
+AD = importdata(AD, 'D:\Projects\2020Feb Leinwand Actin\data\trackdata_20200302.mat');
 
 AD = setFileMetadata(AD, 'PxSize', 0.13, ...
     'DeltaT', 2);
@@ -32,3 +32,6 @@ figure;
 plot(tt, track.InstantSpeed)
 xlabel('Time (s)');
 ylabel('Instantaneous Speed (\mum/s)');
+
+
+export(AD, 'test.csv');
