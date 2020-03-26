@@ -30,15 +30,12 @@ classdef ActinData < TrackArray
             
             data = fieldnames(tmp);
             
-            if numel(data) == 1 && isstruct(tmp.(data{1}))
+            if numel(data) == 1 && isa(tmp.(data{1}), 'TrackArray')
                 
-                obj.LastID = tmp.(data{1}).LastID;
-                obj.Tracks = tmp.(data{1}).Tracks;
-                obj.FileMetadata = tmp.(data{1}).FileMetadata;
-                obj.CreatedOn = tmp.(data{1}).CreatedOn;
+                obj = importobj(obj, tmp.(data{1}));
                 
             else
-                error('Expected data to be a struct. Other formats not currently supported.')
+                error('Expected data to be a TrackArray object. Other formats not currently supported.')
                 
             end
             
