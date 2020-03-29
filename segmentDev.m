@@ -1,7 +1,7 @@
 %Read and pre-process the image
-I = imread('fullframe.tiff');
+I = imread('D:\Projects\2020Feb Leinwand Actin\data\SingleFibers\fullframe.tiff');
 
-Irescale = imresize(I, 3, 'nearest');
+Irescale = imresize(I, 4, 'nearest');
 Irescale = imgaussfilt(Irescale, 1);
 
 bg = imerode(Irescale, strel('disk', 15));
@@ -54,19 +54,36 @@ Icorr = imgaussfilt(Icorr, 0.5);
 %Assume bg is bottom 5th percentile
 bgVal = prctile(Icorr(:), 10);
 
-mask = Icorr > (bgVal * 20);
+%%
+mask = Icorr > (bgVal * 12);
+
+mask = imresize(mask, 1/4, 'nearest');
 
 %Skeletonize - seems to work better if we keep the image larger
-mask_skel = bwskel(mask, 'MinBranchLength', 5);
-mask_skel = bwareaopen(mask_skel, 5);
+mask_skel = bwskel(mask);
+%mask_skel = bwareaopen(mask_skel, 5);
+
+% mask_skel_dil = imdilate(mask_skel, ones(5));
+% mask_skel_dil = imresize(mask_skel_dil, 1/4, 'nearest');
+% mask_skel_dil = bwmorph(mask_skel_dil, 'thin');
+
+% close all
+% figure;
+% showoverlay(I, mask_skel_dil);
+
+% close all
+% imshow(mask_skel)
+% keyboard
 
 %Detect branching lines
 bp = bwmorph(mask_skel, 'branchpoints');
 bpInd = find(bp);
 
+close all
 figure;
-Iout = showoverlay(Isub, mask_skel);
+Iout = showoverlay(I, mask_skel);
 showoverlay(Iout, bp, 'Color', [1 0 0]);
+keyboard
 
 %% Estimate arc length by using straight-line segments
 %An easier/likely good estimate is simply the number of pixels
