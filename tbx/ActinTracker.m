@@ -3,12 +3,11 @@ classdef ActinTracker
     properties
         
         %Segmentation options
+        ChannelToSegment = 1;
         RescaleFactor = 4;  %Factor to increase image by - likely should be even
         BackgroundPercentile = 10;  %After background subtraction
         ThresholdFactor = 15;  %Fiber = background * threshold factor
-        NormalizeIntensity = true;  %Should intensity be normalized
-        
-        ChannelToSegment = 1;
+%         NormalizeIntensity = true;  %Should intensity be normalized
         
         %Relevant LAPLinker settings
         LinkScoreRange = [0 30];
@@ -19,17 +18,121 @@ classdef ActinTracker
         
     methods
         
-        function process(obj, file)
-            %PROCESS  Set up processing
+        function process(obj, files, outputDir)
+            %PROCESS  Start processing files
             %
             %  PROCESS(OBJ) will open a dialog box allowing you to select
-            %  files to process.
+            %  ND2 files to process, as well as the output directory. The
+            %  fibers in the selected files will be segmented and tracked.
+            %
+            %  The code outputs a video (*.avi) file to allow you to check
+            %  segmentation and tracking. The code will also generate a
+            %  MAT-file (*.mat) that contains the tracked the data. This
+            %  MAT-file can be opened with the ActinAnalyzer object for
+            %  further analysis. Both files will have the same name as the
+            %  original image file.
+            %
+            %  During the segmentation step, each frame is resized by the
+            %  RescaleFactor. This seems to improve detection of the
+            %  fibers. The background of the image is then estimated and
+            %  subtracted before the fibers are identified by intensity
+            %  thresholding to generate a binary mask.
+            %
+            %  The detected fiber mask is then resized to its original
+            %  size, then skeletonized to get the center line of each
+            %  object. The length and center point of each line is then
+            %  measured. Any lines with branches (usually indicating
+            %  intersecting fibers) are removed.
+            %
+            %  The fibers are then tracked using a nearest-neighbor
+            %  algorithm based on the center point.
+            %
+            %  There are several settings that you can adjust to improve
+            %  segmentation and tracking:
+            %
+            %  Segmentation
+            %     ChannelToSegment - Channel to segment
+            %     RescaleFactor - Factor to resize images (must be even)
+            %     BackgroundPercentile - Level of background
+            %     ThresholdFactor - Theshold level above background
+            %  
+            %  Tracking
+            %     LinkScoreRange - Range of pixels to link objects
+            %     MaxTrackAge - Whether missing fibers should be retracked
+            %     TrackDivision - Whether division should be tracked
+            %                     (should be false)
+            %
+            %  PROCESS(OBJ, FILES, OUTPUTDIR) can be used to specify
+            %  programatically the files and output directory. If more than
+            %  one file is to be processed, FILES should be a cell array.
+            %  Files is different directories can be specified by providing
+            %  their full path. OUTPUTDIR should be the path to the output
+            %  directory.
             
             
             %  This method checks that files exist, then calls the static
             %  method processFile on each file. This allows the whole
             %  process to be carried out in a parfor loop if needed.
+
+            %Validate inputs
+            if nargin == 1
+                
+                %Get files to process
+                [files, fpath] = uigetfile({'*.nd2', 'ND2 files (*.nd2)'; ...
+                                            '*.tif; *.tiff', 'TIFF files (*.tif; *.tiff)'; ...
+                                            '*.*', 'All files (*.*)'}, ...
+                                            'Select file(s) to process', ...
+                                            'MultiSelect', 'on');
+                %Cancel button pressed
+                if isequal(files, 0)
+                    return;                    
+                end
+                
+                %Convert to cell if only a single file was selected
+                if ~iscell(files)
+                    files = {files};                    
+                end
+                
+                %Append the full path name to each file
+                for iF = 1:numel(files)
+                    files{iF} = fullfile(fpath, files{iF});                    
+                end
+
+                %Get output directory
+                outputDir = uigetdir(fpath, 'Select output directory');
+                
+                %Cancel button pressed
+                if isequal(outputDir, 0)
+                    return;                    
+                end
+                
+            elseif nargin == 3
+                
+                if ~iscell(files)
+                    files = {files};
+                end
+                
+                %Check if files exist
+                for ii = 1:numel(files)
+                    if ~exist(files{ii}, 'file')
+                        error('ActinTracker:process:FileNotFound', ...
+                            'File %s was not found.', files{ii});
+                    end
+                end
+                
+                %Check if output directory exists. Otherwise, create it.
+                if ~exist(outputDir, 'dir')
+                    mkdir(outputDir);                    
+                end
+                
+            else
+                
+                error('ActinTracker:process:InvalidNumberOfArguments', ...
+                    'Invalid number of input arguments. Expected one or three.')
+                
+            end
             
+            %Pack the settings into a struct            
             C = metaclass(obj);
             P = C.Properties;
             for k = 1:length(P)
@@ -38,66 +141,27 @@ classdef ActinTracker
                 end
             end
             
-            ActinTracker.processFile(file, 'D:\Projects\2020Feb Leinwand Actin\data\test', settings)
-            
-        end
-        
-    end
-    
-    methods (Static)
-        
-        function intProfile = generateIntensityProfile(filename, channel)
-            %GENERATEINTENSITYPROFILE  Generates an intensity profile
-            %
-            %  P = GENERATEINTENSITYPROFILE(filename, channel) estimates an
-            %  intensity profile P.
-            %
-            %  Examples:
-            %             figure;
-%             imshow(intProfile, [])
-%             
-%             Icorr = double(I) ./ intProfile;
-%             imshow(Icorr, [])
-%             
-
-            
-            %Open the file
-            reader = BioformatsImage(filename);
-            
-            %Compute the mean intensity of all frames
-            I = zeros(reader.height, reader.width);
-            
-            for iT = 1:reader.sizeT
-                I = mean(cat(3, I, double(getPlane(reader, 1, channel, iT))), 3);
+            %Start processing
+            for iF = 1:numel(files)
+                %Print a progress statement
+                fprintf('%s: Started %s\n', datestr(now), files{iF});
+                
+                %Process file but catch errors that occur
+                try
+                    
+                    ActinTracker.processFile(files{iF}, outputDir, settings);
+                    
+                catch ME
+                    
+                    %Print an error statement
+                    fprintf('%s: Error processing %s\n', datestr(now), files{iF});
+                    
+                    msgText = getReport(ME);
+                    fprintf('%s\n', msgText);
+                
+                end
             end
             
-            %Take a rough mask to identify objects
-            mask = imbinarize(I, 'adaptive');
-            
-            %Fit measured data to a 2D Gaussian
-            gauss2D =  fittype('A * exp(-((xx - B).^2 + (yy - C).^2) / (2*D.^2))',...
-                'independent', {'xx', 'yy'});
-                        
-            %Generate the fitting coordinates
-            [yyFit, xxFit] = find(mask);
-            
-            %Generate an initial guess
-            [maxInt, maxIntInd] = max(I(mask));
-            initGuess = [maxInt, xyFit(maxIntInd, 1), xyFit(maxIntInd, 2), 100];
-            
-            %Fit the detected pixel intensities
-            fitObj = fit([xxFit, yyFit], I(mask), gauss2D, 'StartPoint', initGuess);
-            
-            %figure;
-            %plot(fitObj, xyFit, intFit)
-            
-            %Generate the output intensity profile
-            xx = 1:size(I, 2);
-            yy = 1:size(I, 1);
-            [xx, yy] = meshgrid(xx, yy);
-            
-            intProfile = fitObj.A * exp(-((xx - fitObj.B).^2 + (yy - fitObj.C).^2) / (2*fitObj.D.^2));
-           
         end
         
     end
@@ -115,13 +179,13 @@ classdef ActinTracker
             %
             %  This is a static method.
             
-            %TODO: Normalize intensity if set
-            if settings.NormalizeIntensity
-                disp('Noramlize intensity - to be done')
-                %intProfile = generateIntensityProfile(filename, channel);
-                
-            end
-            
+%             %TODO: Normalize intensity if set
+%             if settings.NormalizeIntensity
+%                 disp('Noramlize intensity - to be done')
+%                 %intProfile = generateIntensityProfile(filename, channel);
+%                 
+%             end
+%             
             reader = BioformatsImage(file);
 
             %Set up the linker object
@@ -353,6 +417,64 @@ classdef ActinTracker
 
     end
     
+    
+% %     methods (Static)
+% %         
+% %         function intProfile = generateIntensityProfile(filename, channel)
+% %             %GENERATEINTENSITYPROFILE  Generates an intensity profile
+% %             %
+% %             %  P = GENERATEINTENSITYPROFILE(filename, channel) estimates an
+% %             %  intensity profile P.
+% %             %
+% %             %  Examples:
+% %             %             figure;
+% % %             imshow(intProfile, [])
+% % %             
+% % %             Icorr = double(I) ./ intProfile;
+% % %             imshow(Icorr, [])
+% % %             
+% % 
+% %             
+% %             %Open the file
+% %             reader = BioformatsImage(filename);
+% %             
+% %             %Compute the mean intensity of all frames
+% %             I = zeros(reader.height, reader.width);
+% %             
+% %             for iT = 1:reader.sizeT
+% %                 I = mean(cat(3, I, double(getPlane(reader, 1, channel, iT))), 3);
+% %             end
+% %             
+% %             %Take a rough mask to identify objects
+% %             mask = imbinarize(I, 'adaptive');
+% %             
+% %             %Fit measured data to a 2D Gaussian
+% %             gauss2D =  fittype('A * exp(-((xx - B).^2 + (yy - C).^2) / (2*D.^2))',...
+% %                 'independent', {'xx', 'yy'});
+% %                         
+% %             %Generate the fitting coordinates
+% %             [yyFit, xxFit] = find(mask);
+% %             
+% %             %Generate an initial guess
+% %             [maxInt, maxIntInd] = max(I(mask));
+% %             initGuess = [maxInt, xyFit(maxIntInd, 1), xyFit(maxIntInd, 2), 100];
+% %             
+% %             %Fit the detected pixel intensities
+% %             fitObj = fit([xxFit, yyFit], I(mask), gauss2D, 'StartPoint', initGuess);
+% %             
+% %             %figure;
+% %             %plot(fitObj, xyFit, intFit)
+% %             
+% %             %Generate the output intensity profile
+% %             xx = 1:size(I, 2);
+% %             yy = 1:size(I, 1);
+% %             [xx, yy] = meshgrid(xx, yy);
+% %             
+% %             intProfile = fitObj.A * exp(-((xx - fitObj.B).^2 + (yy - fitObj.C).^2) / (2*fitObj.D.^2));
+% %            
+% %         end
+% %         
+% %     end
     
     
 end
