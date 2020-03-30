@@ -7,7 +7,7 @@ classdef ActinTracker
         RescaleFactor = 3;  %Factor to increase image by - likely should be even
         BackgroundPercentile = 10;  %After background subtraction
         ThresholdFactor = 12;  %Fiber = background * threshold factor
-        MinBranchLength = 7;  %Minimum length of branches
+        MinBranchLength = 3;  %Minimum length of branches
 %         NormalizeIntensity = true;  %Should intensity be normalized
         
         %Relevant LAPLinker settings
@@ -199,9 +199,7 @@ classdef ActinTracker
             if nargout >= 2 
                 varargout{2} = bpInd;
             end
-            if nargout == 3
-                varargout{3} = Isub;
-            end
+
             
         end
         
@@ -411,7 +409,7 @@ classdef ActinTracker
                         [yy, xx] = ind2sub(size(mask), data(idx).PixelIdxList);
                         
                         %Account for the resizing of the mask
-                        data(idx).LineCoords = [xx, yy] ./ settings.RescaleFactor;
+                        data(idx).LineCoords = [xx, yy];% ./ settings.RescaleFactor;
                         
                         lineData = ActinTracker.getLineData(data(idx).LineCoords);
                         
@@ -425,7 +423,7 @@ classdef ActinTracker
                 linker = assignToTrack(linker, iT, data);
                 
                 %Make a movie
-                Iout = double(imresize(Isub, 1/settings.RescaleFactor, 'nearest'));
+                Iout = double(Isub);
                 Iout = Iout ./ max(Iout(:));
                 for iTrack = 1:numel(linker.activeTrackIDs)
                     
@@ -464,80 +462,30 @@ classdef ActinTracker
             
         end
         
-        function [mask, bpInd, IbgSub] = segment(I, settings)
+        function [mask, bpInd, Isub] = segment(I, settings)
             %SEGMENT  Segment an image and return mask and branchpoints
             %
             %  [MASK, BP] = SEGMENT(I, SETTINGS) segments the image I with
             %  the SETTINGS in the struct provided. The outputs are a MASK
             %  and the branchpoint indices BP.
             
-            %-- Pre-processing --$
-            %Increasing the resolution of the image to help with
-            %segmentation
-            %Iseg = imresize(I, settings.RescaleFactor, 'nearest');
-            Iseg = I;
+            Isub = imtophat(I, ones(10));
             
-%             Iseg = imgaussfilt(Iseg, 1);
-            
-%             bg = imerode(Iseg, strel('disk', 7));
-%             
-%             IbgSub = Iseg - bg;
-%             IbgSub(IbgSub == 0) = 1;
-            
-            %Normalize the values?
-            
-            
-            %-- Segment ---%
-            
-            %Determine background value by smoothing the image a bit, then
-            %taking the darkest pixels
-%             Ismooth = imgaussfilt(IbgSub, 3);
-            
-            %Assume bg is bottom 5th percentile
-%             bgVal = prctile(Ismooth(:), settings.BackgroundPercentile);
-%             clearvars('Ismooth');
-            
-            %Make a mask of the fibers
-%             mask = IbgSub > (bgVal * settings.ThresholdFactor);
-            
-               FM = fibermetric(Iseg, [3, 5]);
-               
-               mask = FM > 0;
-               showoverlay(Iseg, mask, 'Opacity', 40);
-               keyboard
-               
-
-
-
-%             stDevBackground = std(double(IbgSub(:)));
-%             mask = IbgSub > (stDevBackground * settings.ThresholdFactor);
-%             
-            imshow(IbgSub, [])
-            %showoverlay(IbgSub, bwperim(mask))
-            keyboard           
-            
-            
-%             %Reduce the mask back to the original size
-%             mask = imresize(mask, 1/settings.RescaleFactor, 'nearest');
+            FM = fibermetric(Isub, [2, 4, 6]);
+            mask = FM > (max(FM(:)) / settings.ThresholdFactor);
             
             %Skeletonize the fibers to get the center line
             mask = bwskel(mask, 'MinBranchLength', settings.MinBranchLength);  %Remove small branches
-            %mask = bwareaopen(mask, 5); %Clean up small objects
             
             %Detect branching lines - objects with branches will be removed
             %in the final mask
             bpMask = bwmorph(mask, 'branchpoints');
             bpInd = find(bpMask);
-            
-%             if nargout == 3
-%                 IbgSub = imresize(IbgSub, 1/settings.RescaleFactor, 'nearest');
-%             end
-            
+   
             %--DEBUG
             %figure;
             %Iout = showoverlay(IbgSub, mask);
             %showoverlay(Iout, bpMask, 'Color', [1 0 0]);
-            
             
         end
         
@@ -651,8 +599,7 @@ classdef ActinTracker
         end
 
     end
-    
-    
+        
     methods (Static)
         
         function intProfile = generateIntensityProfile(filename, channel)
