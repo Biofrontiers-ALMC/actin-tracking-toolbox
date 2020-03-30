@@ -2,10 +2,11 @@ clearvars
 
 %Example of importing the data to the analyzer object
 AD = ActinData;
-AD = importdata(AD, 'D:\Projects\2020Feb Leinwand Actin\data\trackdata_20200302.mat');
+AD = importdata(AD, 'D:\Projects\2020Feb Leinwand Actin\data\20200330\RQPeri_2spf_1.mat');
 
-AD = setFileMetadata(AD, 'PxSize', 0.13, ...
-    'DeltaT', 2);
+%The file has the issue where timestamps are not read correctly
+AD = setFileMetadata(AD, 'meanDeltaT', 2);  %RQPeri
+%AD = setFileMetadata(AD, 'meanDeltaT', 0.5);  %WTbeta
 
 AD = analyze(AD);
 
@@ -23,15 +24,65 @@ figure;
 histogram([AD.Tracks(tracks_pass).MeanInstantSpeed]);
 
 %Example of plotting - track 3
-track = getTrack(AD, 3);
-tt = track.Frames * AD.FileMetadata.DeltaT;
-
-%TODO: How many stuck
+track = getTrack(AD, 5);
+tt = track.Frames * AD.FileMetadata.meanDeltaT;
 
 figure;
 plot(tt, track.InstantSpeed)
 xlabel('Time (s)');
 ylabel('Instantaneous Speed (\mum/s)');
 
-
+%Export data to a CSV file
 export(AD, 'test.csv');
+
+%TODO: How many stuck
+tracks_pass_id = find(tracks_pass);
+numNotMoving = 0;
+notMovingIds = [];
+
+for iT =  1%:numel(tracks_pass)
+    
+    track = getTrack(AD, iT);
+    
+    %Compute the distance travelled between subsequent frames
+    distTravelled = sqrt(sum((diff(track.Centroid)).^2, 2));
+    
+    %Determine if there was a period of time in which the fiber was "stuck"
+    %or not moving much
+    isNotMoving = nnz(distTravelled < 1);
+
+    if isNotMoving > 5
+        %Let's just say if the fiber doesn't move much in 5 frames, call it
+        %not moving
+        numNotMoving = numNotMoving + 1;
+        notMovingIds(end + 1) = iT;        
+    end
+end
+
+notMovingFrac = numNotMoving / numel(tracks_pass_id)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

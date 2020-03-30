@@ -4,14 +4,15 @@ classdef ActinTracker
         
         %Segmentation options
         ChannelToSegment = 1;
-        RescaleFactor = 4;  %Factor to increase image by - likely should be even
+        RescaleFactor = 3;  %Factor to increase image by - likely should be even
         BackgroundPercentile = 10;  %After background subtraction
-        ThresholdFactor = 15;  %Fiber = background * threshold factor
+        ThresholdFactor = 12;  %Fiber = background * threshold factor
+        MinBranchLength = 7;  %Minimum length of branches
 %         NormalizeIntensity = true;  %Should intensity be normalized
         
         %Relevant LAPLinker settings
         LinkScoreRange = [0 30];
-        MaxTrackAge = 1;        
+        MaxTrackAge = 0;        
         TrackDivision = false;
         
     end
@@ -141,6 +142,9 @@ classdef ActinTracker
                 end
             end
             
+            %Export settings
+            exportSettings(obj, fullfile(outputDir, 'settings.txt'));
+            
             %Start processing
             for iF = 1:numel(files)
                 %Print a progress statement
@@ -161,6 +165,182 @@ classdef ActinTracker
                 
                 end
             end
+            
+        end
+        
+        function varargout = testsegment(obj, file, frame)
+            %TESTSEGMENT  Test the segmentation settings
+            %
+            %  TESTSEGMENT(OBJ, FILE, FRAME) runs the segmentation routine
+            %  on the file and frame specified.
+            %
+            
+            reader = BioformatsImage(file);
+            
+            I = getPlane(reader, 1, obj.ChannelToSegment, frame);
+            
+            settings.RescaleFactor = obj.RescaleFactor;
+            settings.BackgroundPercentile = obj.BackgroundPercentile;
+            settings.ThresholdFactor = obj.ThresholdFactor;
+            settings.MinBranchLength = obj.MinBranchLength;
+            
+            [mask, bpInd, Isub] = ActinTracker.segment(I, settings);
+            
+            %Convert branch points indices to mask
+            bpMask = false(size(mask));
+            bpMask(bpInd) = true;
+            
+            Iout = showoverlay(Isub, mask);
+            showoverlay(Iout, bpMask, 'color', [1 0 0]);
+            
+            if nargout >= 1
+                varargout{1} = mask;
+            end
+            if nargout >= 2 
+                varargout{2} = bpInd;
+            end
+            if nargout == 3
+                varargout{3} = Isub;
+            end
+            
+        end
+        
+        function obj = importSettings(obj, varargin)
+            %IMPORTSETTINGS  Import settings from file
+            %
+            %  IMPORTSETTINGS(OBJ, FILENAME) will load the options from the
+            %  file specified.
+            %
+            %  IMPORTSETTINGS(OBJ) will open a dialog box for the user to
+            %  select the option file.
+            
+            %Get the options file
+            if isempty(varargin)
+                [fname, fpath] = uigetfile({'*.txt','Text file (*.txt)';...
+                    '*.*','All files (*.*)'},...
+                    'Select settings file');
+                
+                if fname == 0
+                    return;
+                end
+                
+                optionsFile = fullfile(fpath,fname);
+                
+            elseif numel(varargin) == 1
+                optionsFile = varargin{1};
+                
+            else
+                error('ActinTracker:importSettings:TooManyInputs', 'Too many input arguments.');
+                
+            end
+            
+            fid = fopen(optionsFile,'r');
+            
+            if isequal(fid,-1)
+                error('ActinTracker:importSettings:ErrorReadingFile',...
+                    'Could not open file %s for reading.',optionsFile);
+            end
+            
+            ctrLine = 0;
+            while ~feof(fid)
+                currLine = strtrim(fgetl(fid));
+                ctrLine = ctrLine + 1;
+                
+                if isempty(currLine) || strcmpi(currLine(1),'%') || strcmpi(currLine(1),'#')
+                    %Empty lines should be skipped
+                    %Lines starting with '%' or '#' are comments, so ignore
+                    %those
+                    
+                else
+                    
+                    parsedLine = strsplit(currLine,'=');
+                    
+                    %Check for errors in the options file
+                    if numel(parsedLine) < 2
+                        error('ActinTracker:importSettings:ErrorReadingOption',...
+                            'Error reading <a href="matlab:opentoline(''%s'', %d)">file %s (line %d)</a>',...
+                            optionsFile, ctrLine, optionsFile, ctrLine);
+                    elseif isempty(parsedLine{2})
+                        error('ActinTracker:importSettings:ErrorReadingOption',...
+                            'Missing value in <a href="matlab:opentoline(''%s'', %d)">file %s (line %d)</a>',...
+                            optionsFile, ctrLine, optionsFile, ctrLine);
+                    end
+                    
+                    %Get parameter name (removing spaces)
+                    parameterName = strtrim(parsedLine{1});
+                    
+                    %Get value name (removing spaces)
+                    value = strtrim(parsedLine{2});
+                    
+                    if isempty(value)
+                        %If value is empty, just use the default
+                    else
+                        obj.(parameterName) = eval(value);
+                    end
+                    
+                end
+                
+            end
+            
+            fclose(fid);
+        end
+        
+        function exportSettings(obj, exportFilename)
+            %EXPORTOPTIONS  Export tracking options to a file
+            %
+            %  L.EXPORTOPTIONS(filename) will write the currently set
+            %  options to the file specified. The options are written in
+            %  plaintext, no matter what the extension of the file is.
+            %
+            %  L.EXPORTOPTIONS if the filename is not provided, a dialog
+            %  box will pop-up asking the user to select a location to save
+            %  the file.
+            
+            if ~exist('exportFilename','var')
+                
+                [filename, pathname] = uiputfile({'*.txt','Text file (*.txt)'},...
+                    'Select output file location');
+                
+                exportFilename = fullfile(pathname,filename);
+                
+            end
+            
+            fid = fopen(exportFilename,'w');
+            
+            if fid == -1
+                error('ActinTracker:exportSettings:CouldNotOpenFile',...
+                    'Could not open file %s to write.', exportFilename)
+            end
+            
+            %First, write the date
+            fprintf(fid,'%%%s \r\n\r\n', datestr(now));
+            
+            propertyList = properties(obj);
+            
+            %Write output data depending on the datatype of the value
+            for ii = 1:numel(propertyList)
+                
+                if ischar(obj.(propertyList{ii}))
+                    fprintf(fid,'%s = ''%s'' \r\n',propertyList{ii}, ...
+                        obj.(propertyList{ii}));
+                    
+                elseif isnumeric(obj.(propertyList{ii}))
+                    fprintf(fid,'%s = %s \r\n',propertyList{ii}, ...
+                        mat2str(obj.(propertyList{ii})));
+                    
+                elseif islogical(obj.(propertyList{ii}))
+                    
+                    if obj.(propertyList{ii})
+                        fprintf(fid,'%s = true \r\n',propertyList{ii});
+                    else
+                        fprintf(fid,'%s = false \r\n',propertyList{ii});
+                    end
+                    
+                end
+                
+            end
+            
+            fclose(fid);
             
         end
         
@@ -193,7 +373,7 @@ classdef ActinTracker
 
             %Set up output file details
             [~, fn] = fileparts(file);
-                        
+            
             vid = VideoWriter(fullfile(outputDir, [fn, '.avi']));
             vid.FrameRate = 10;
             open(vid);
@@ -203,49 +383,8 @@ classdef ActinTracker
                 %Read and pre-process the image
                 I = getPlane(reader, 1, settings.ChannelToSegment, iT);
                 
-                %-- Pre-processing --$
-                %Increasing the resolution of the image to help with
-                %segmentation
-                Iseg = imresize(I, settings.RescaleFactor, 'nearest');
-                Iseg = imgaussfilt(Iseg, 1);
-                
-                bg = imerode(Iseg, strel('disk', 15));
-                
-                IbgSub = Iseg - bg;
-                IbgSub(IbgSub == 0) = 1;
-                
-                %-- Segment ---%
-                
-                %Determine background value by smoothing the image a bit, then
-                %taking the darkest pixels
-                Ismooth = imgaussfilt(IbgSub, 0.5);
-                
-                %Assume bg is bottom 5th percentile
-                bgVal = prctile(Ismooth(:), settings.BackgroundPercentile);
-                clearvars('Ismooth');
-                
-                %Make a mask of the fibers
-                mask = IbgSub > (bgVal * settings.ThresholdFactor);
-                
-                %Reduce the mask back to the original size
-                mask = imresize(mask, 1/settings.RescaleFactor, 'nearest');
-                
-                %Skeletonize the fibers to get the center line
-                mask = bwskel(mask);  %Remove small branches
-                %mask = bwareaopen(mask, 5); %Clean up small objects
-                
-                %Detect branching lines - objects with branches will be removed
-                %in the final mask
-                bpMask = bwmorph(mask, 'branchpoints');
-                bpInd = find(bpMask);
-                
-                %--DEBUG
-                %figure;
-                %Iout = showoverlay(IbgSub, mask);
-                %showoverlay(Iout, bpMask, 'Color', [1 0 0]);
-                
-                clearvars bpMask;
-                
+                [mask, bpInd, Isub] = ActinTracker.segment(I, settings);
+                 
                 %-- Measure --
                 
                 %Find connected components
@@ -270,7 +409,11 @@ classdef ActinTracker
                         
                         %Measure the centroid and the length of the line
                         [yy, xx] = ind2sub(size(mask), data(idx).PixelIdxList);
-                        lineData = ActinTracker.getLineData([xx, yy]);
+                        
+                        %Account for the resizing of the mask
+                        data(idx).LineCoords = [xx, yy] ./ settings.RescaleFactor;
+                        
+                        lineData = ActinTracker.getLineData(data(idx).LineCoords);
                         
                         data(idx).Centroid = lineData.Centroid;
                         data(idx).Length = lineData.Length;
@@ -281,16 +424,19 @@ classdef ActinTracker
                 %Track the fibers
                 linker = assignToTrack(linker, iT, data);
                 
-                %Make a movie - TODO
-                Iout = showoverlay(I, mask);
+                %Make a movie
+                Iout = double(imresize(Isub, 1/settings.RescaleFactor, 'nearest'));
+                Iout = Iout ./ max(Iout(:));
                 for iTrack = 1:numel(linker.activeTrackIDs)
                     
                     track = getTrack(linker, linker.activeTrackIDs(iTrack));
+                    
+                    %Mark the centroid of each line
+                    Iout = insertShape(Iout, 'FilledCircle', [track.Centroid(end, :), 3], 'Color', 'red');
+                    
                     Iout = insertText(Iout, track.Centroid(end, :), linker.activeTrackIDs(iTrack), ...
                         'BoxOpacity', 0, 'TextColor', 'yellow');
-                    %TODO OPACITY AND BOX COLOR                    
-                    
-                    Iout = double(Iout);
+
                     Iout = Iout./max(Iout(:));
                 end
                 writeVideo(vid, Iout);
@@ -299,9 +445,99 @@ classdef ActinTracker
             end
             
             close(vid)
+            
+            %Set file metadata
+            [ts, tsunits] = getTimestamps(reader, 1, settings.ChannelToSegment);
+            
+            linker = updateMetadata(linker, ...
+                'filename', file,...
+                'imgSize', [reader.height, reader.width], ...
+                'pxSize', reader.pxSize, ...
+                'pxSizeUnits', reader.pxUnits, ...
+                'timestamps', ts, ...
+                'timestampUnites', tsunits, ...
+                'meanDeltaT', mean(diff(ts)));
+            
             tracks = linker.tracks;
             save(fullfile(outputDir, [fn, '.mat']), 'tracks');
             %Save data - TODO METADATA
+            
+        end
+        
+        function [mask, bpInd, IbgSub] = segment(I, settings)
+            %SEGMENT  Segment an image and return mask and branchpoints
+            %
+            %  [MASK, BP] = SEGMENT(I, SETTINGS) segments the image I with
+            %  the SETTINGS in the struct provided. The outputs are a MASK
+            %  and the branchpoint indices BP.
+            
+            %-- Pre-processing --$
+            %Increasing the resolution of the image to help with
+            %segmentation
+            %Iseg = imresize(I, settings.RescaleFactor, 'nearest');
+            Iseg = I;
+            
+%             Iseg = imgaussfilt(Iseg, 1);
+            
+%             bg = imerode(Iseg, strel('disk', 7));
+%             
+%             IbgSub = Iseg - bg;
+%             IbgSub(IbgSub == 0) = 1;
+            
+            %Normalize the values?
+            
+            
+            %-- Segment ---%
+            
+            %Determine background value by smoothing the image a bit, then
+            %taking the darkest pixels
+%             Ismooth = imgaussfilt(IbgSub, 3);
+            
+            %Assume bg is bottom 5th percentile
+%             bgVal = prctile(Ismooth(:), settings.BackgroundPercentile);
+%             clearvars('Ismooth');
+            
+            %Make a mask of the fibers
+%             mask = IbgSub > (bgVal * settings.ThresholdFactor);
+            
+               FM = fibermetric(Iseg, [3, 5]);
+               
+               mask = FM > 0;
+               showoverlay(Iseg, mask, 'Opacity', 40);
+               keyboard
+               
+
+
+
+%             stDevBackground = std(double(IbgSub(:)));
+%             mask = IbgSub > (stDevBackground * settings.ThresholdFactor);
+%             
+            imshow(IbgSub, [])
+            %showoverlay(IbgSub, bwperim(mask))
+            keyboard           
+            
+            
+%             %Reduce the mask back to the original size
+%             mask = imresize(mask, 1/settings.RescaleFactor, 'nearest');
+            
+            %Skeletonize the fibers to get the center line
+            mask = bwskel(mask, 'MinBranchLength', settings.MinBranchLength);  %Remove small branches
+            %mask = bwareaopen(mask, 5); %Clean up small objects
+            
+            %Detect branching lines - objects with branches will be removed
+            %in the final mask
+            bpMask = bwmorph(mask, 'branchpoints');
+            bpInd = find(bpMask);
+            
+%             if nargout == 3
+%                 IbgSub = imresize(IbgSub, 1/settings.RescaleFactor, 'nearest');
+%             end
+            
+            %--DEBUG
+            %figure;
+            %Iout = showoverlay(IbgSub, mask);
+            %showoverlay(Iout, bpMask, 'Color', [1 0 0]);
+            
             
         end
         
@@ -411,70 +647,69 @@ classdef ActinTracker
             
             %Report any excluded data points
             lineData.Excluded = coords(~isSorted, :);
-            
-            
+
         end
 
     end
     
     
-% %     methods (Static)
-% %         
-% %         function intProfile = generateIntensityProfile(filename, channel)
-% %             %GENERATEINTENSITYPROFILE  Generates an intensity profile
-% %             %
-% %             %  P = GENERATEINTENSITYPROFILE(filename, channel) estimates an
-% %             %  intensity profile P.
-% %             %
-% %             %  Examples:
-% %             %             figure;
-% % %             imshow(intProfile, [])
-% % %             
-% % %             Icorr = double(I) ./ intProfile;
-% % %             imshow(Icorr, [])
-% % %             
-% % 
-% %             
-% %             %Open the file
-% %             reader = BioformatsImage(filename);
-% %             
-% %             %Compute the mean intensity of all frames
-% %             I = zeros(reader.height, reader.width);
-% %             
-% %             for iT = 1:reader.sizeT
-% %                 I = mean(cat(3, I, double(getPlane(reader, 1, channel, iT))), 3);
-% %             end
-% %             
-% %             %Take a rough mask to identify objects
-% %             mask = imbinarize(I, 'adaptive');
-% %             
-% %             %Fit measured data to a 2D Gaussian
-% %             gauss2D =  fittype('A * exp(-((xx - B).^2 + (yy - C).^2) / (2*D.^2))',...
-% %                 'independent', {'xx', 'yy'});
-% %                         
-% %             %Generate the fitting coordinates
-% %             [yyFit, xxFit] = find(mask);
-% %             
-% %             %Generate an initial guess
-% %             [maxInt, maxIntInd] = max(I(mask));
-% %             initGuess = [maxInt, xyFit(maxIntInd, 1), xyFit(maxIntInd, 2), 100];
-% %             
-% %             %Fit the detected pixel intensities
-% %             fitObj = fit([xxFit, yyFit], I(mask), gauss2D, 'StartPoint', initGuess);
-% %             
-% %             %figure;
-% %             %plot(fitObj, xyFit, intFit)
-% %             
-% %             %Generate the output intensity profile
-% %             xx = 1:size(I, 2);
-% %             yy = 1:size(I, 1);
-% %             [xx, yy] = meshgrid(xx, yy);
-% %             
-% %             intProfile = fitObj.A * exp(-((xx - fitObj.B).^2 + (yy - fitObj.C).^2) / (2*fitObj.D.^2));
-% %            
-% %         end
-% %         
-% %     end
+    methods (Static)
+        
+        function intProfile = generateIntensityProfile(filename, channel)
+            %GENERATEINTENSITYPROFILE  Generates an intensity profile
+            %
+            %  P = GENERATEINTENSITYPROFILE(filename, channel) estimates an
+            %  intensity profile P.
+            %
+            %  Examples:
+            %             figure;
+%             imshow(intProfile, [])
+%             
+%             Icorr = double(I) ./ intProfile;
+%             imshow(Icorr, [])
+%             
+
+            
+            %Open the file
+            reader = BioformatsImage(filename);
+            
+            %Compute the mean intensity of all frames
+            I = zeros(reader.height, reader.width);
+            
+            for iT = 1:reader.sizeT
+                I = mean(cat(3, I, double(getPlane(reader, 1, channel, iT))), 3);
+            end
+            
+            %Take a rough mask to identify objects
+            mask = imbinarize(I, 'adaptive');
+            
+            %Fit measured data to a 2D Gaussian
+            gauss2D =  fittype('A * exp(-((xx - B).^2 + (yy - C).^2) / (2*D.^2))',...
+                'independent', {'xx', 'yy'});
+                        
+            %Generate the fitting coordinates
+            [yyFit, xxFit] = find(mask);
+            
+            %Generate an initial guess
+            [maxInt, maxIntInd] = max(I(mask));
+            initGuess = [maxInt, xyFit(maxIntInd, 1), xyFit(maxIntInd, 2), 100];
+            
+            %Fit the detected pixel intensities
+            fitObj = fit([xxFit, yyFit], I(mask), gauss2D, 'StartPoint', initGuess);
+            
+            %figure;
+            %plot(fitObj, xyFit, intFit)
+            
+            %Generate the output intensity profile
+            xx = 1:size(I, 2);
+            yy = 1:size(I, 1);
+            [xx, yy] = meshgrid(xx, yy);
+            
+            intProfile = fitObj.A * exp(-((xx - fitObj.B).^2 + (yy - fitObj.C).^2) / (2*fitObj.D.^2));
+           
+        end
+        
+    end
     
     
 end

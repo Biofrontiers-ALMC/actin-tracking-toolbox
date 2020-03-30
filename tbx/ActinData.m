@@ -1,5 +1,11 @@
 classdef ActinData < TrackArray
-    
+    %ACTINDATA  Analyze actin data
+    %
+    %  OBJ = ACTINDATA creates a new ActinData object to analyze data from
+    %  the tracked movies. Data should be imported into the project using
+    %  the method importdata.
+    %
+        
     methods
         
         function obj = importdata(obj, filename)
@@ -58,17 +64,17 @@ classdef ActinData < TrackArray
                 %AD.Tracks(1).Data.Centroid{1}
                 
                 %Compute instantaneous speed
-                pos = cell2mat(obj.Tracks(iT).Data.Centroid') .* obj.FileMetadata.PxSize;
+                pos = cell2mat(obj.Tracks(iT).Data.Centroid') .* obj.FileMetadata.pxSize(1);
                 
                 instantSpd = [0; sqrt(sum((diff(pos, 1)).^2, 2))];
                 
                 for jj = 1:numel(instantSpd)
-                    obj.Tracks(iT).Data.InstantSpeed{jj} = instantSpd(jj) / obj.FileMetadata.DeltaT;
+                    obj.Tracks(iT).Data.InstantSpeed{jj} = instantSpd(jj) / obj.FileMetadata.meanDeltaT;
                 end
                 
                 obj.Tracks(iT).MeanInstantSpeed = mean(instantSpd(2:end));
                 
-                len = cell2mat(obj.Tracks(iT).Data.MajorAxisLength') * obj.FileMetadata.PxSize;
+                len = cell2mat(obj.Tracks(iT).Data.Length') * obj.FileMetadata.pxSize(1);
                 obj.Tracks(iT).MeanFilamentLength = mean(len);
                 
                 obj.Tracks(iT).NumFrames = numel(obj.Tracks(iT).Frames);
