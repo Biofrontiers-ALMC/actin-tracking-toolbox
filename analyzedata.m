@@ -2,14 +2,19 @@ clearvars
 
 %Example of importing the data to the analyzer object
 AD = ActinData;
-AD = importdata(AD, 'D:\Projects\2020Feb Leinwand Actin\data\20200330\RQPeri_2spf_1.mat');
+%AD = importdata(AD, 'D:\Projects\2020Feb Leinwand Actin\data\20200330_fibermetric\RQPeri_2spf_1.mat');
+AD = importdata(AD, 'D:\Projects\2020Feb Leinwand Actin\data\20200330_fibermetric\WTbeta_0,5spf_1.mat');
 
 %The file has the issue where timestamps are not read correctly
-AD = setFileMetadata(AD, 'meanDeltaT', 2);  %RQPeri
-%AD = setFileMetadata(AD, 'meanDeltaT', 0.5);  %WTbeta
+%AD = setFileMetadata(AD, 'meanDeltaT', 2);  %RQPeri
+AD = setFileMetadata(AD, 'meanDeltaT', 0.5);  %WTbeta0
 
 AD = analyze(AD);
 
+export(AD, 'WTbeta_0,5spf_1.csv');
+return
+
+%%
 %Example of filtering
 minFilamentLength = 3;
 minNumFrames = 3;

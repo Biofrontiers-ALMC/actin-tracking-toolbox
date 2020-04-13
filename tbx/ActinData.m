@@ -50,35 +50,58 @@ classdef ActinData < TrackArray
         end
         
         function obj = analyze(obj)
-            %ANALYZE
+            %ANALYZE  Analyze the data
+            %
+            %  OBJ = ANALYZE(OBJ) updates the track array with additional
+            %  data fields:
+            %    * Instantaneous speed per frame (um/s)
+            %    * Number of frames
+            %    * Average speed (um/s)
+            %    * Standard deviation of speed (ums)
+            %    * Average filament length (um)
+            %    * Standard deviation of length (um)
+            %    * Total distance traveled (um)
+            %    * Total displacement (distance between first and last
+            %      frames) (um)
             
-            %Compute the:
-            % 1. Instantaneous velocity
-            % 2. Average Instantaneous velocity
-            % 3. Filament length (avg?)
-            % 3. Total number of frames
-            % 4. If fiber is stuck
             
             for iT = 1:numel(obj.Tracks)
                 
-                %AD.Tracks(1).Data.Centroid{1}
-                
-                %Compute instantaneous speed
+                %-- Compute instantaneous speed --
+                %Get position of cells and concatenate into a matrix
                 pos = cell2mat(obj.Tracks(iT).Data.Centroid') .* obj.FileMetadata.pxSize(1);
                 
-                instantSpd = [0; sqrt(sum((diff(pos, 1)).^2, 2))];
+                %Compute the distance traveled between frames
+                distBetweenFrames = [0; sqrt(sum((diff(pos, 1)).^2, 2))];
                 
-                for jj = 1:numel(instantSpd)
-                    obj.Tracks(iT).Data.InstantSpeed{jj} = instantSpd(jj) / obj.FileMetadata.meanDeltaT;
+                %Compute the instaneous speed
+                for jj = 1:numel(distBetweenFrames)
+                    obj.Tracks(iT).Data.InstantaneousSpeed{jj} = distBetweenFrames(jj) / obj.FileMetadata.meanDeltaT;
                 end
                 
-                obj.Tracks(iT).MeanInstantSpeed = mean(instantSpd(2:end));
-                
-                len = cell2mat(obj.Tracks(iT).Data.Length') * obj.FileMetadata.pxSize(1);
-                obj.Tracks(iT).MeanFilamentLength = mean(len);
-                
+                %-- Compute Statistics --
+                %Number of frames
                 obj.Tracks(iT).NumFrames = numel(obj.Tracks(iT).Frames);
                 
+                %Average speed
+                obj.Tracks(iT).AverageSpeed = mean([obj.Tracks(iT).Data.InstantaneousSpeed{:}]);
+                
+                %Standard deviation of speed
+                obj.Tracks(iT).StdDevSpeed = std([obj.Tracks(iT).Data.InstantaneousSpeed{:}]);
+                
+                %Average filament length
+                len = cell2mat(obj.Tracks(iT).Data.Length') * obj.FileMetadata.pxSize(1);
+                obj.Tracks(iT).AverageFilamentLength = mean(len);
+                
+                %Standard deviation of filament length
+                obj.Tracks(iT).StdDevFilamentLength = std(len);
+               
+                %Total distance traveled
+                obj.Tracks(iT).DistanceTraveled = sum(distBetweenFrames);
+                
+                %Total displacement
+                obj.Tracks(iT).Displacement = sqrt(sum((obj.Tracks(iT).Data.Centroid{1} - obj.Tracks(iT).Data.Centroid{end}).^2, 2));
+                                
             end
             
             
@@ -121,7 +144,8 @@ classdef ActinData < TrackArray
             %Print column headers
             datafields = fieldnames(obj.Tracks(1).Data);
             
-            fprintf(fid, 'Track ID, Num Frames, Mean Instantaneous Speed, Mean Filament Length, Frame');
+            fprintf(fid, ['Track ID, Num Frames, Average Speed, StdDev Speed,'...
+                'Average Filament Length, StdDev Filament Length, Distance Traveled, Displacement, Frame']);
             
             fprintf(fid, ', %s', datafields{:});
             fprintf(fid, '\n');
@@ -129,17 +153,21 @@ classdef ActinData < TrackArray
             for iTrack = 1:numel(obj.Tracks)
                 
                 %Print track metadata
-                fprintf(fid, '%.0f, %.0f, %.3f, %.3f', ...
+                fprintf(fid, '%.0f, %.0f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f', ...
                     obj.Tracks(iTrack).ID, ...
                     obj.Tracks(iTrack).NumFrames, ...
-                    obj.Tracks(iTrack).MeanInstantSpeed, ...
-                    obj.Tracks(iTrack).MeanFilamentLength);
-                    
+                    obj.Tracks(iTrack).AverageSpeed, ...
+                    obj.Tracks(iTrack).StdDevSpeed, ...
+                    obj.Tracks(iTrack).AverageFilamentLength, ...
+                    obj.Tracks(iTrack).StdDevFilamentLength, ...
+                    obj.Tracks(iTrack).DistanceTraveled, ...
+                    obj.Tracks(iTrack).Displacement);
+                                    
                 %Print track data
                 for iF = 1:numel(obj.Tracks(iTrack).Frames)
                     
                     if iF > 1
-                        fprintf(fid, ', , ,');
+                        fprintf(fid, ', , , , , , ,');
                     end
                     
                     %Print frame index
