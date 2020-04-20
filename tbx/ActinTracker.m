@@ -4,11 +4,8 @@ classdef ActinTracker
         
         %Segmentation options
         ChannelToSegment = 1;
-        RescaleFactor = 3;  %Factor to increase image by - likely should be even
-        BackgroundPercentile = 10;  %After background subtraction
         ThresholdFactor = 12;  %Fiber = background * threshold factor
         MinBranchLength = 3;  %Minimum length of branches
-%         NormalizeIntensity = true;  %Should intensity be normalized
         
         %Relevant LAPLinker settings
         LinkScoreRange = [0 30];
@@ -164,6 +161,7 @@ classdef ActinTracker
                     fprintf('%s\n', msgText);
                 
                 end
+                fprintf('%s: Completed %s\n', datestr(now), files{iF});
             end
             
         end
@@ -179,11 +177,15 @@ classdef ActinTracker
             
             I = getPlane(reader, 1, obj.ChannelToSegment, frame);
             
-            settings.RescaleFactor = obj.RescaleFactor;
-            settings.BackgroundPercentile = obj.BackgroundPercentile;
-            settings.ThresholdFactor = obj.ThresholdFactor;
-            settings.MinBranchLength = obj.MinBranchLength;
-            
+            %Pack the settings into a struct
+            C = metaclass(obj);
+            P = C.Properties;
+            for k = 1:length(P)
+                if ~P{k}.Dependent
+                    settings.(P{k}.Name) = obj.(P{k}.Name);
+                end
+            end
+           
             [mask, bpInd, Isub] = ActinTracker.segment(I, settings);
             
             %Convert branch points indices to mask
@@ -456,9 +458,8 @@ classdef ActinTracker
                 'timestampUnites', tsunits, ...
                 'meanDeltaT', mean(diff(ts)));
             
-            tracks = linker.tracks;
+            tracks = linker.tracks;            
             save(fullfile(outputDir, [fn, '.mat']), 'tracks');
-            %Save data - TODO METADATA
             
         end
         
@@ -484,8 +485,8 @@ classdef ActinTracker
    
             %--DEBUG
             %figure;
-            %Iout = showoverlay(IbgSub, mask);
-            %showoverlay(Iout, bpMask, 'Color', [1 0 0]);
+            Iout = showoverlay(Isub, mask);
+            showoverlay(Iout, bpMask, 'Color', [1 0 0]);
             
         end
         
