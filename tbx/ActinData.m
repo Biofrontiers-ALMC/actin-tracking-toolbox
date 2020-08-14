@@ -63,8 +63,7 @@ classdef ActinData < TrackArray
             %    * Total distance traveled (um)
             %    * Total displacement (distance between first and last
             %      frames) (um)
-            
-            
+                        
             for iT = 1:numel(obj.Tracks)
                 
                 %-- Compute instantaneous speed --
