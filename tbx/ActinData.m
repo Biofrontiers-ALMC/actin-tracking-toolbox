@@ -5,7 +5,13 @@ classdef ActinData < TrackArray
     %  the tracked movies. Data should be imported into the project using
     %  the method importdata.
     %
+    
+    properties
+       
+        minStuckSpeed = 0.06;
         
+    end
+    
     methods
         
         function obj = importdata(obj, filename)
@@ -101,8 +107,55 @@ classdef ActinData < TrackArray
                 %Total displacement
                 obj.Tracks(iT).Displacement = sqrt(sum((obj.Tracks(iT).Data.Centroid{1} - obj.Tracks(iT).Data.Centroid{end}).^2, 2));
                                 
+                if obj.Tracks(iT).AverageSpeed < obj.minStuckSpeed
+                    obj.Tracks(iT).isStuck = true;
+                else
+                    obj.Tracks(iT).isStuck = false;                    
+                end
+                
             end
             
+            
+        end
+        
+        function showlabels(obj, frame)
+            
+            bfr = BioformatsImage(obj.FileMetadata.filename);
+            
+            I = getPlane(bfr, 1, 1, frame);
+            
+            maskStuck = false(size(I));
+            maskNotStuck = false(size(I));
+            
+            for iT = 1:numel(obj)
+                idx = find(obj.Tracks(iT).Frames == frame);
+
+                if ~isempty(idx)
+                    
+                    if obj.Tracks(iT).isStuck
+                        
+                        maskStuck(obj.Tracks(iT).Data.PixelIdxList{idx}) = true;                        
+                        I = insertText(I, obj.Tracks(iT).Data.Centroid{idx}, iT, ...
+                            'BoxOpacity', 0, 'TextColor', 'y');
+                        
+                    else
+                        
+                        maskNotStuck(obj.Tracks(iT).Data.PixelIdxList{idx}) = true;                        
+                        I = insertText(I, obj.Tracks(iT).Data.Centroid{idx}, iT, ...
+                            'BoxOpacity', 0, 'TextColor', 'w');
+                        
+                    end
+                end
+            end
+            
+            if any(maskStuck, 'all')
+                I = ActinTracker.showoverlay(I, bwperim(maskStuck), 'color', [1 0 0]);
+            end
+            
+            if any(maskNotStuck, 'all');
+                I = ActinTracker.showoverlay(I, bwperim(maskNotStuck), 'color', [0 0 1]);
+            end
+            imshow(I)
             
         end
         
