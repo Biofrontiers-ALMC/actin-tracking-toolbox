@@ -8,7 +8,7 @@ classdef ActinData < TrackArray
     
     properties
        
-        minStuckSpeed = 0.06;
+        maxStuckSpeed = 0.06;
         
     end
     
@@ -107,7 +107,7 @@ classdef ActinData < TrackArray
                 %Total displacement
                 obj.Tracks(iT).Displacement = sqrt(sum((obj.Tracks(iT).Data.Centroid{1} - obj.Tracks(iT).Data.Centroid{end}).^2, 2));
                                 
-                if obj.Tracks(iT).AverageSpeed < obj.minStuckSpeed
+                if obj.Tracks(iT).AverageSpeed < obj.maxStuckSpeed
                     obj.Tracks(iT).isStuck = true;
                 else
                     obj.Tracks(iT).isStuck = false;                    
@@ -118,7 +118,7 @@ classdef ActinData < TrackArray
             
         end
         
-        function showlabels(obj, frame)
+        function Iout = showlabels(obj, frame)
             
             bfr = BioformatsImage(obj.FileMetadata.filename);
             
@@ -152,10 +152,16 @@ classdef ActinData < TrackArray
                 I = ActinTracker.showoverlay(I, bwperim(maskStuck), 'color', [1 0 0]);
             end
             
-            if any(maskNotStuck, 'all');
+            if any(maskNotStuck, 'all')
                 I = ActinTracker.showoverlay(I, bwperim(maskNotStuck), 'color', [0 0 1]);
             end
-            imshow(I)
+            
+            if nargout == 1
+                Iout = I;
+            else
+                imshow(I)
+            end
+            
             
         end
         
