@@ -145,9 +145,6 @@ classdef ActinData_LAL2_JWT < TrackArray
             end
         end
         
-        
-        
-        
         function Iout = showlabels(obj, frame ,trackId)
             singleTrack = trackId > 0;
             bfr = BioformatsImage(obj.FileMetadata.filename);
