@@ -9,7 +9,7 @@ process(AT, ...
 
 %%
 
-AD = ActinData;
+AD = ActinData_LAL2_JWT;
 
 AD = importdata(AD, 'D:\Projects\ALMC Tickets\T50-Lehman-Actin\results\BetaWT_50_1_002.mat');
 AD = analyze(AD);

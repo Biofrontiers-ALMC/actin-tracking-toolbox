@@ -1,3 +1,7 @@
+%NOTE: This script has additional code to filter filament data by length
+%and number of frames tracked
+
+
 classdef ActinData_LAL2_JWT < TrackArray
     %ACTINDATA  Analyze actin data
     %
