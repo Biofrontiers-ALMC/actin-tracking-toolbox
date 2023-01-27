@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.toolbox" plugin-version="1.0">
-  <configuration file="D:\Projects\ALMC Tickets\T50-Lehman-Actin\code\build\Actin Tracking Toolbox.prj" location="D:\Projects\ALMC Tickets\T50-Lehman-Actin\code\build" name="Actin Tracking Toolbox" target="target.toolbox" target-name="Package Toolbox">
+  <configuration file="D:\Projects\Toolboxes\actin-tracking-toolbox\build\Actin Tracking Toolbox.prj" location="D:\Projects\Toolboxes\actin-tracking-toolbox\build" name="Actin Tracking Toolbox" target="target.toolbox" target-name="Package Toolbox">
     <param.appname>Actin Tracking Toolbox</param.appname>
     <param.authnamewatermark>Jian Wei Tay</param.authnamewatermark>
     <param.email>jian.tay@colorado.edu</param.email>
@@ -7,7 +7,7 @@
     <param.summary>Segment and track actin filaments</param.summary>
     <param.description />
     <param.screenshot />
-    <param.version>0.1.2</param.version>
+    <param.version>0.1.3</param.version>
     <param.output>${PROJECT_ROOT}\Actin Tracking Toolbox.mltbx</param.output>
     <param.products.name />
     <param.products.id />
@@ -103,11 +103,7 @@
     </fileset.rootdir>
     <fileset.rootfiles>
       <file>D:\Projects\ALMC Tickets\T50-Lehman-Actin\code\tbx\ActinData.m</file>
-      <file>D:\Projects\ALMC Tickets\T50-Lehman-Actin\code\tbx\ActinData_LAL2_JWT.m</file>
-      <file>D:\Projects\ALMC Tickets\T50-Lehman-Actin\code\tbx\ActinData_LAL_OR2.m</file>
       <file>D:\Projects\ALMC Tickets\T50-Lehman-Actin\code\tbx\ActinTracker.m</file>
-      <file>D:\Projects\ALMC Tickets\T50-Lehman-Actin\code\tbx\Motility_LAL.m</file>
-      <file>D:\Projects\ALMC Tickets\T50-Lehman-Actin\code\tbx\Motility_LAL_JWT.m</file>
     </fileset.rootfiles>
     <fileset.depfun.included />
     <fileset.depfun.excluded>
@@ -119,11 +115,10 @@
       <file>D:\Projects\Toolboxes\Bioformats Image Toolbox\code\tbx\BioformatsImage\BioformatsImage.m</file>
       <file>D:\Projects\Toolboxes\Linear Assignment Linker\code\tbx\lap-tracker\LAPLinker.m</file>
       <file>D:\Projects\Toolboxes\Linear Assignment Linker\code\tbx\lap-tracker\TrackArray.m</file>
-      <file>D:\Projects\Toolboxes\nd2sdk-matlab\code\tbx\nd2reader\ND2reader.m</file>
     </fileset.depfun.excluded>
     <fileset.package />
     <build-deliverables>
-      <file location="${PROJECT_ROOT}" name="Actin Tracking Toolbox.mltbx" optional="false">D:\Projects\ALMC Tickets\T50-Lehman-Actin\code\build\Actin Tracking Toolbox.mltbx</file>
+      <file location="${PROJECT_ROOT}" name="Actin Tracking Toolbox.mltbx" optional="false">D:\Projects\Toolboxes\actin-tracking-toolbox\build\Actin Tracking Toolbox.mltbx</file>
     </build-deliverables>
     <workflow />
     <matlab>
