@@ -51,8 +51,6 @@ classdef ActinData < TrackArray
                 
             end
             
-            
-            
         end
         
         function obj = analyze(obj)
@@ -70,6 +68,18 @@ classdef ActinData < TrackArray
             %    * Total displacement (distance between first and last
             %      frames) (um)
                         
+            %Check if metadata was populated. If not, ask for needed
+            %information.
+            if isnan(obj.FileMetadata.pxSize)
+                error('ActinData:analyze:pxSizeMissing', ...
+                    'The pixel size information is missing. Please use obj = setFileMetadata(obj,''pxSize'', val) to add.');
+            end
+
+            if isnan(obj.FileMetadata.meanDeltaT)
+                error('ActinData:analyze:meanDeltaTMissing', ...
+                    'The mean time between frames information is missing. Please use obj = setFileMetadata(obj,''meanDeltaT'', val) to add.');
+            end
+
             for iT = 1:numel(obj.Tracks)
                 
                 %-- Compute instantaneous speed --
